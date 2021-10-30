@@ -20,7 +20,7 @@ s = sched.scheduler(time.time, time.sleep)
 
 found.append(item("item_89405600", 1400))
 
-def fetchTori(sc,init):
+def fetch_tori(sc,init):
     page = requests.get(URL)
     soup = BeautifulSoup(page.content, 'html.parser')
     results = soup.find('div', class_='list_mode_thumb')
@@ -40,23 +40,23 @@ def fetchTori(sc,init):
                 found.append(item(id, price))
                 print(datetime.now().time(), "Found new listing", link)
                 if not init:
-                    postTelegram("Found new listing\n"+link)
+                    post_telegram("Found new listing\n"+link)
             elif any(x for x in found if x.ID == id and x.price != price):
                 for x in found:
                     if x.ID == id:
                         print(datetime.now().time(), "Price changed for item")
-                        postTelegram("Price changed for item from "+str(x.price)+"€"+" to "+price+"€"+"\n"+link)
+                        post_telegram("Price changed for item from "+str(x.price)+"€"+" to "+price+"€"+"\n"+link)
                         x.price = price
     except Exception as e:
         print(datetime.now().time(), "ERROR", e)
-    s.enter(300, 1, fetchTori, (sc,False,))
+    s.enter(300, 1, fetch_tori, (sc,False,))
 
-def postTelegram(message):
+def post_telegram(message):
     url = 'https://api.telegram.org/bot'+TELEGRAM_TOKEN+'/sendMessage'
     payload = {'chat_id':CHAT_ID,'text':message}
 
     send = requests.post(url, data = payload)
     print(datetime.now().time(), send)
 
-s.enter(1, 1, fetchTori, (s,True,))
+s.enter(1, 1, fetch_tori, (s,True,))
 s.run()
