@@ -63,9 +63,24 @@ def create_watcher(keyword, chat_id):
                          "CHAT_ID="+str(chat_id), \
                          "KEYWORD="+keyword], \
             mem_limit="64m", \
-            name="tori-"+str(chat_id)+"-"+str(index))
+            labels={"chat_id":str(chat_id),"keyword":keyword})
     watchers.append(watcher(index, keyword, chat_id, container.attrs['Id']))
     print("Watcher created for", keyword)
+
+def delete_watcher(index, chat_id):
+    try:
+        watcher = [w for w in watchers if w.index == index and w.chat_id == chat_id][0]
+        print(watcher.index, watcher.chat_id, watcher.container)
+        container = client.containers.get(watcher.container)
+        print(container)
+        container.stop()
+        watchers.remove(watcher)
+        print("Removed watcher for", watcher.keyword)
+        return True
+    except IndexError:
+        print("Couldn't find watcher with that id for that user")
+        return False
+
 
 @post('/')
 def main():
@@ -83,10 +98,15 @@ def main():
         print("not admin")
         return
     if message.startswith("/add"):
-        print("Starting watcher creation mode")
         keyword = message[4:].strip()
         create_watcher(keyword, chat_id)
-        post_telegram(chat_id, "Created watcher for "+keyword)
+        post_telegram(chat_id, "Created watcher for " + keyword)
+    if message.startswith("/delete"):
+        index = int(message[7:].strip())
+        if delete_watcher(index, chat_id):
+            post_telegram(chat_id, "Deleted watcher " + str(index))
+        else:
+            post_telegram(chat_id, "Couldn't delete watcher")
     elif message == "/list":
         print("Printing toriwatchers")
         watcher_list = get_watchers(chat_id)
