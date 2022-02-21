@@ -58,6 +58,7 @@ def create_watcher(keyword, chat_id):
     index = len(get_watchers(chat_id)) + 1
     container = client.containers.run('tori', \
             detach=True, \
+            restart_policy={"Name":"on-failure","MaximumRetryCount":3}, \
             environment=["TELEGRAM_TOKEN="+TELEGRAM_TOKEN, \
                          "CHAT_ID="+str(chat_id), \
                          "KEYWORD="+keyword], \
