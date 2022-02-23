@@ -10,27 +10,26 @@ from bottle import (
 load_dotenv()
 
 class watcher:
-    def __init__(self, index, keyword, chat_id, container):
-        self.index = index
+    def __init__(self, keyword, chat_id, container):
         self.keyword = keyword
         self.chat_id = chat_id
         self.container = container
 
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 ADMIN_ID = int(os.getenv('ADMIN_ID'))
-watchers = []
 update_id = 0
 
 client = docker.from_env()
 
-def gather_watchers():
+def get_containers():
+    watchers = []
     for index, container in enumerate(client.containers.list(), start=1):
         if container.attrs['Config']['Image'] == "tori":
             env = container.attrs['Config']['Env']
             keyword = [s for s in env if "KEYWORD" in s][0].split('=')[1]
             chat_id = [s for s in env if "CHAT_ID" in s][0].split('=')[1]
-            watchers.append(watcher(index, keyword, int(chat_id), container.attrs['Id']))
-gather_watchers()
+            watchers.append(watcher(keyword, int(chat_id), container.attrs['Id']))
+    return watchers
 
 def get_chat_id(data):
     chat_id = data['message']['chat']['id']
@@ -51,6 +50,7 @@ def post_telegram(chat_id, message):
     print(datetime.now().time(), send)
 
 def get_watchers(chat_id):
+    watchers = get_containers()
     watcher_list = [w for w in watchers if w.chat_id == chat_id]
     return watcher_list
 
@@ -64,17 +64,15 @@ def create_watcher(keyword, chat_id):
                          "KEYWORD="+keyword], \
             mem_limit="64m", \
             labels={"chat_id":str(chat_id),"keyword":keyword})
-    watchers.append(watcher(index, keyword, chat_id, container.attrs['Id']))
     print("Watcher created for", keyword)
 
-def delete_watcher(index, chat_id):
+def delete_watcher(keyword, chat_id):
     try:
-        watcher = [w for w in watchers if w.index == index and w.chat_id == chat_id][0]
-        print(watcher.index, watcher.chat_id, watcher.container)
+        watchers = get_watchers(chat_id)
+        watcher = [w for w in watchers if w.keyword == keyword][0]
         container = client.containers.get(watcher.container)
-        print(container)
+        print("Removing watcher for", watcher.keyword)
         container.stop()
-        watchers.remove(watcher)
         print("Removed watcher for", watcher.keyword)
         return True
     except IndexError:
@@ -102,9 +100,9 @@ def main():
         create_watcher(keyword, chat_id)
         post_telegram(chat_id, "Created watcher for " + keyword)
     if message.startswith("/delete"):
-        index = int(message[7:].strip())
-        if delete_watcher(index, chat_id):
-            post_telegram(chat_id, "Deleted watcher " + str(index))
+        keyword = message[8:]
+        if delete_watcher(keyword, chat_id):
+            post_telegram(chat_id, "Deleted watcher for " + keyword)
         else:
             post_telegram(chat_id, "Couldn't delete watcher")
     elif message == "/list":
@@ -114,7 +112,7 @@ def main():
             post_telegram(chat_id, "You have no active watchers")
         else:
             reply = "You have following active watchers:\n"
-            keywords = [str(w.index) + ". " + w.keyword for w in watcher_list]
+            keywords = [str(i+1) + ". " + w.keyword for i, w in enumerate(watcher_list)]
             reply += "\n".join(keywords)
             post_telegram(chat_id, reply)
 
